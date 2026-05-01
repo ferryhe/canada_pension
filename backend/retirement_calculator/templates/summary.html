@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Retirement Summary</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #17202a; margin: 32px; }
+      h1, h2 { color: #12343b; }
+      .metric { display: inline-block; margin: 0 20px 18px 0; }
+      .metric strong { display: block; font-size: 20px; }
+      table { border-collapse: collapse; width: 100%; font-size: 12px; }
+      th, td { border-bottom: 1px solid #d8dee4; padding: 6px 8px; text-align: right; }
+      th:first-child, td:first-child { text-align: left; }
+      .note { color: #5f6b7a; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Canada Retirement Planning Summary</h1>
+    <p class="note">Educational estimate based on Ontario 2026 policy assumptions.</p>
+    <section>
+      <div class="metric"><span>Retirement year</span><strong>{{ result.summary.retirement_year }}</strong></div>
+      <div class="metric"><span>First retirement after-tax income</span><strong>${{ "{:,.0f}".format(result.summary.first_retirement_after_tax_income) }}</strong></div>
+      <div class="metric"><span>Average retirement after-tax income</span><strong>${{ "{:,.0f}".format(result.summary.average_retirement_after_tax_income) }}</strong></div>
+      <div class="metric"><span>Ending net worth</span><strong>${{ "{:,.0f}".format(result.summary.ending_net_worth) }}</strong></div>
+    </section>
+    <h2>Suggestions</h2>
+    <ul>
+      {% for suggestion in result.summary.suggestions %}
+        <li>{{ suggestion }}</li>
+      {% endfor %}
+    </ul>
+    <h2>Retirement Years</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Age</th><th>Year</th><th>After-tax income</th><th>Taxable income</th>
+          <th>Taxes</th><th>OAS</th><th>CPP</th><th>GIS</th><th>Net worth</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in result.yearly_results if row.phase == "retirement" %}
+          <tr>
+            <td>{{ row.age }}</td>
+            <td>{{ row.year }}</td>
+            <td>${{ "{:,.0f}".format(row.after_tax_income) }}</td>
+            <td>${{ "{:,.0f}".format(row.tax.taxable_income) }}</td>
+            <td>${{ "{:,.0f}".format(row.tax.total_tax) }}</td>
+            <td>${{ "{:,.0f}".format(row.benefits.oas) }}</td>
+            <td>${{ "{:,.0f}".format(row.benefits.cpp) }}</td>
+            <td>${{ "{:,.0f}".format(row.benefits.gis) }}</td>
+            <td>${{ "{:,.0f}".format(row.accounts.net_worth) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

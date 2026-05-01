@@ -1,0 +1,31 @@
+scenarios:
+  - name: Base
+    description: 8% return, retire at 65
+    assumptions:
+      annual_return: 0.08
+      inflation: 0.03
+    profile:
+      retirement_age: 65
+    benefits:
+      oas_start_age: 71
+      cpp_start_age: 71
+  - name: Conservative
+    description: 5% return, retire at 67
+    assumptions:
+      annual_return: 0.05
+      inflation: 0.025
+    profile:
+      retirement_age: 67
+    benefits:
+      oas_start_age: 70
+      cpp_start_age: 70
+  - name: Optimistic
+    description: 10% return, retire at 63
+    assumptions:
+      annual_return: 0.10
+      inflation: 0.03
+    profile:
+      retirement_age: 63
+    benefits:
+      oas_start_age: 65
+      cpp_start_age: 65

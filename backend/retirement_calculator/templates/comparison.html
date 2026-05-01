@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Scenario Comparison</title></head>
+  <body>
+    <h1>Scenario Comparison</h1>
+    <p>Best scenario: {{ comparison.best_scenario }}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Retirement age</th><th>CPP</th><th>OAS</th>
+          <th>Average after-tax</th><th>Ending net worth</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comparison.comparison_table %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.retirement_age }}</td>
+            <td>{{ row.cpp_start_age }}</td>
+            <td>{{ row.oas_start_age }}</td>
+            <td>${{ "{:,.0f}".format(row.average_retirement_after_tax_income) }}</td>
+            <td>${{ "{:,.0f}".format(row.ending_net_worth) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

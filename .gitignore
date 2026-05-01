@@ -4,6 +4,7 @@
 
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -14,6 +15,9 @@ node_modules/
 dist/
 build/
 .vite/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 reports/
 *.log
