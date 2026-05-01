@@ -44,6 +44,20 @@ def test_report_html_endpoint():
     assert "Retirement Summary" in response.text
 
 
+def test_report_pdf_dependency_error(monkeypatch):
+    def unavailable_pdf(_html):
+        raise RuntimeError("WeasyPrint is not available in this environment")
+
+    monkeypatch.setattr("retirement_calculator.api.render_pdf", unavailable_pdf)
+    result = simulate(SimulationConfig())
+    response = client.post(
+        "/api/v1/report",
+        json={"result": result.model_dump(), "format": "pdf", "template": "summary"},
+    )
+    assert response.status_code == 503
+    assert "WeasyPrint is not available" in response.json()["detail"]
+
+
 def test_chat_falls_back_without_openai_key(monkeypatch):
     monkeypatch.setattr("retirement_calculator.ai.settings.openai_api_key", None)
     response = client.post(

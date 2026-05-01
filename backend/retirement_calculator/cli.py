@@ -46,9 +46,14 @@ def report(
     format: Annotated[str, typer.Option("--format", "-f")] = "html",
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
 ) -> None:
+    if format not in {"html", "pdf"}:
+        raise typer.BadParameter("--format must be html or pdf")
     parsed = result_from_json(result)
     destination = output or Path(f"retirement-report.{format}")
-    write_report(parsed, destination, template, format)
+    try:
+        write_report(parsed, destination, template, format)
+    except RuntimeError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Wrote report to {destination}")
 
 

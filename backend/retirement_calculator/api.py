@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -78,7 +78,11 @@ def chat_endpoint(request: ChatRequest):
 def report_endpoint(request: ReportRequest):
     html = render_result_html(request.result, request.template)
     if request.format == "pdf":
-        return Response(render_pdf(html), media_type="application/pdf")
+        try:
+            pdf = render_pdf(html)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return Response(pdf, media_type="application/pdf")
     return HTMLResponse(html)
 
 
