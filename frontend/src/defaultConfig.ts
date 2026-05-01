@@ -11,7 +11,12 @@ export const defaultConfig: SimulationConfig = {
     tfsa: { balance: 50000, annual_contribution: 0 },
     rrsp: { balance: 500000, annual_contribution: 33000 },
     non_registered: { balance: 50000, annual_contribution: 0 },
-    investment_loan: { balance: 300000, annual_repayment: 15000, interest_rate: 0.05 },
+    investment_loan: {
+      gross_asset_balance: 300000,
+      loan_balance: 300000,
+      annual_repayment: 15000,
+      interest_rate: 0.05
+    },
     spouse_rrsp: { balance: 300000, annual_contribution: 0 }
   },
   assumptions: {

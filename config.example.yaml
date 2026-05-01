@@ -13,8 +13,10 @@ accounts:
   non_registered:
     balance: 50000
   investment_loan:
-    balance: 300000
+    gross_asset_balance: 300000
+    loan_balance: 300000
     annual_repayment: 15000
+    interest_rate: 0.05
   spouse_rrsp:
     balance: 300000
 assumptions:

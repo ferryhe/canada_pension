@@ -9,8 +9,7 @@ async function requestJson<T>(path: string, body?: unknown): Promise<T> {
     body: body ? JSON.stringify(body) : undefined
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with ${response.status}`);
+    throw new Error(await errorMessage(response));
   }
   return response.json() as Promise<T>;
 }
@@ -50,7 +49,19 @@ export async function createReport(result: SimulationResult, format: "html" | "p
     body: JSON.stringify({ result, format, template: "summary" })
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await errorMessage(response));
   }
   return response.blob();
+}
+
+async function errorMessage(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return `Request failed with ${response.status}`;
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+  } catch {
+    // Fall through to raw response text.
+  }
+  return text;
 }

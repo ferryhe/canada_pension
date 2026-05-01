@@ -30,9 +30,24 @@ class AccountConfig(BaseModel):
 
 
 class InvestmentLoanConfig(BaseModel):
-    balance: float = Field(300_000, ge=0)
+    model_config = ConfigDict(extra="forbid")
+
+    gross_asset_balance: float = Field(300_000, ge=0)
+    loan_balance: float = Field(300_000, ge=0)
     annual_repayment: float = Field(15_000, ge=0)
     interest_rate: float = Field(0.05, ge=0, le=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_balance(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        migrated = dict(data)
+        if "balance" in migrated:
+            balance = migrated.pop("balance")
+            migrated.setdefault("gross_asset_balance", balance)
+            migrated.setdefault("loan_balance", balance)
+        return migrated
 
 
 class AccountsConfig(BaseModel):
@@ -154,6 +169,7 @@ class YearlyResult(BaseModel):
 
 class Summary(BaseModel):
     retirement_year: int
+    summary_end_age: int
     first_retirement_after_tax_income: float
     average_retirement_after_tax_income: float
     total_after_tax_income: float

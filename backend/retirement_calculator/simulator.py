@@ -35,8 +35,8 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
     tfsa_balance = cfg.accounts.tfsa.balance
     rrsp_balance = cfg.accounts.rrsp.balance
     non_registered_balance = cfg.accounts.non_registered.balance
-    investment_asset = cfg.accounts.investment_loan.balance
-    investment_loan = cfg.accounts.investment_loan.balance
+    investment_asset = cfg.accounts.investment_loan.gross_asset_balance
+    investment_loan = cfg.accounts.investment_loan.loan_balance
     spouse_rrsp_balance = cfg.accounts.spouse_rrsp.balance
 
     annual_return = cfg.assumptions.annual_return
@@ -52,6 +52,20 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
             f"${policy.RRSP_DOLLAR_LIMIT:,.0f}; "
             "the contribution is capped in the projection."
         )
+    if cfg.accounts.tfsa.annual_contribution > policy.TFSA_DOLLAR_LIMIT:
+        warnings.append(
+            "TFSA annual contribution exceeds the 2026 dollar limit of "
+            f"${policy.TFSA_DOLLAR_LIMIT:,.0f}; "
+            "the contribution is capped in the projection."
+        )
+    spouse_rrsp_in_use = (
+        cfg.accounts.spouse_rrsp.balance > 0 or cfg.accounts.spouse_rrsp.annual_contribution > 0
+    )
+    if spouse_rrsp_in_use:
+        warnings.append(
+            "Spouse RRSP is modeled as household cash flow only; spouse OAS, CPP, GIS, "
+            "and a separate spouse tax return are not calculated in this MVP."
+        )
 
     for age in range(cfg.profile.current_age, cfg.profile.projection_end_age + 1):
         year = policy.POLICY_YEAR + (age - cfg.profile.current_age)
@@ -65,12 +79,20 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
         investment_loan_repayment = 0.0
 
         tfsa_contribution = (
-            cfg.accounts.tfsa.annual_contribution if phase == "accumulation" else 0.0
+            min(cfg.accounts.tfsa.annual_contribution, policy.TFSA_DOLLAR_LIMIT)
+            if phase == "accumulation"
+            else 0.0
         )
         rrsp_contribution = (
             min(cfg.accounts.rrsp.annual_contribution, policy.RRSP_DOLLAR_LIMIT)
             if phase == "accumulation"
             else 0.0
+        )
+        non_registered_contribution = (
+            cfg.accounts.non_registered.annual_contribution if phase == "accumulation" else 0.0
+        )
+        spouse_rrsp_contribution = (
+            cfg.accounts.spouse_rrsp.annual_contribution if phase == "accumulation" else 0.0
         )
 
         if phase == "retirement":
@@ -159,13 +181,17 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
         )
         non_registered_balance = max(
             0.0,
-            non_registered_balance * (1 + annual_return) - non_registered_withdrawal,
+            non_registered_balance * (1 + annual_return)
+            + non_registered_contribution
+            - non_registered_withdrawal,
         )
         investment_asset = max(0.0, investment_asset * (1 + annual_return))
         investment_loan = max(0.0, investment_loan - investment_loan_repayment)
         spouse_rrsp_balance = max(
             0.0,
-            spouse_rrsp_balance * (1 + annual_return) - spouse_rrsp_withdrawal,
+            spouse_rrsp_balance * (1 + annual_return)
+            + spouse_rrsp_contribution
+            - spouse_rrsp_withdrawal,
         )
 
         accounts = AccountSnapshot(
@@ -213,21 +239,27 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
             )
         )
 
-    retirement_results = [result for result in results if result.age >= cfg.profile.retirement_age]
-    first_retirement = retirement_results[0] if retirement_results else results[-1]
+    summary_results = [result for result in results if result.age <= cfg.profile.life_expectancy]
+    if not summary_results:
+        summary_results = results
+    retirement_results = [
+        result for result in summary_results if result.age >= cfg.profile.retirement_age
+    ]
+    first_retirement = retirement_results[0] if retirement_results else summary_results[-1]
     total_after_tax = sum(max(0.0, result.after_tax_income) for result in retirement_results)
     average_after_tax = total_after_tax / len(retirement_results) if retirement_results else 0.0
-    ending_net_worth = results[-1].accounts.net_worth
-    lowest_net_worth = min(result.accounts.net_worth for result in results)
-    peak_taxable_income = max(result.tax.taxable_income for result in results)
+    ending_net_worth = summary_results[-1].accounts.net_worth
+    lowest_net_worth = min(result.accounts.net_worth for result in summary_results)
+    peak_taxable_income = max(result.tax.taxable_income for result in summary_results)
 
-    suggestions = _build_suggestions(cfg, results)
+    suggestions = _build_suggestions(cfg, summary_results)
 
     return SimulationResult(
         yearly_results=results,
         summary=Summary(
             retirement_year=policy.POLICY_YEAR
             + (cfg.profile.retirement_age - cfg.profile.current_age),
+            summary_end_age=summary_results[-1].age,
             first_retirement_after_tax_income=round(first_retirement.after_tax_income, 2),
             average_retirement_after_tax_income=round(average_after_tax, 2),
             total_after_tax_income=round(total_after_tax, 2),

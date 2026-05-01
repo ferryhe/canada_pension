@@ -265,6 +265,33 @@ th {
   color: #687a75;
 }
 
+.compact-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #405550;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.compact-list li + li {
+  margin-top: 6px;
+}
+
+.source-box {
+  display: grid;
+  gap: 8px;
+  color: #5c6f6a;
+  font-size: 13px;
+}
+
+.source-box strong {
+  color: #213b37;
+}
+
+.warn-list {
+  color: #8c4a24;
+}
+
 .field-group {
   display: grid;
   gap: 9px;
