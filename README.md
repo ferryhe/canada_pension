@@ -23,6 +23,8 @@ npm.cmd run dev
 
 Copy `.env.example` to `.env` and set `OPENAI_API_KEY` to enable the real assistant.
 Without a key, `/api/v1/chat` falls back to a deterministic parser for local demos.
+Set `RUN_LIVE_OPENAI=1` only when you intentionally want the live OpenAI smoke tests
+to call the API with the key from your environment.
 
 ## Policy Baseline
 
@@ -32,3 +34,9 @@ Without a key, `/api/v1/chat` falls back to a deterministic parser for local dem
 - RRIF minimum factors from CRA prescribed-factor guidance.
 
 This is a planning model, not tax, legal, or financial advice.
+
+## Excel Reference
+
+The demo workbook is documented in `docs/excel-reference.md`. It is used as a UI
+and cash-flow reference only; the shipped calculation mode remains the official
+Ontario/Federal 2026 engine.
