@@ -5,6 +5,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      run_live_openai:
+        description: "Run live OpenAI smoke tests"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test:
@@ -32,7 +39,7 @@ jobs:
         run: python -m pytest
 
       - name: Live OpenAI smoke
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        if: ${{ secrets.OPENAI_API_KEY != '' && (vars.RUN_LIVE_OPENAI == '1' || (github.event_name == 'workflow_dispatch' && inputs.run_live_openai)) }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4-mini' }}

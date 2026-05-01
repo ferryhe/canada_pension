@@ -58,7 +58,10 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
             f"${policy.TFSA_DOLLAR_LIMIT:,.0f}; "
             "the contribution is capped in the projection."
         )
-    if cfg.accounts.spouse_rrsp.balance > 0 or cfg.withdrawal_strategy.spouse_rrsp_rate > 0:
+    spouse_rrsp_in_use = (
+        cfg.accounts.spouse_rrsp.balance > 0 or cfg.accounts.spouse_rrsp.annual_contribution > 0
+    )
+    if spouse_rrsp_in_use:
         warnings.append(
             "Spouse RRSP is modeled as household cash flow only; spouse OAS, CPP, GIS, "
             "and a separate spouse tax return are not calculated in this MVP."

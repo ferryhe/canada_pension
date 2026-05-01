@@ -54,3 +54,14 @@ def test_tfsa_limit_and_spouse_rrsp_warnings():
     result = simulate(cfg)
     assert any("TFSA annual contribution exceeds" in warning for warning in result.warnings)
     assert any("Spouse RRSP is modeled" in warning for warning in result.warnings)
+
+
+def test_spouse_rrsp_rate_alone_does_not_warn_when_account_unused():
+    cfg = SimulationConfig.model_validate(
+        {
+            "accounts": {"spouse_rrsp": {"balance": 0, "annual_contribution": 0}},
+            "withdrawal_strategy": {"spouse_rrsp_rate": 0.04},
+        }
+    )
+    result = simulate(cfg)
+    assert not any("Spouse RRSP is modeled" in warning for warning in result.warnings)

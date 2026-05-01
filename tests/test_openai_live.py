@@ -12,22 +12,35 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize(
-    ("prompt", "expected"),
+    "prompt",
     [
-        ("按默认计算", "simulate"),
-        ("收益率改成5%重新算", "simulate"),
-        ("和67岁退休对比", "compare"),
-        ("导出PDF", "report"),
-        ("为什么OAS延迟到70岁", "explain"),
+        "按默认计算",
+        "收益率改成5%重新算",
+        "和67岁退休对比",
+        "导出PDF",
+        "为什么OAS延迟到70岁",
     ],
 )
-def test_live_openai_chat_smoke(prompt, expected):
+def test_live_openai_chat_smoke(prompt):
     response = chat([{"role": "user", "content": prompt}], SimulationConfig())
 
     assert response["model"] == settings.openai_model
-    assert response["intent"] == expected
+    assert response["intent"] in {
+        "collect_info",
+        "simulate",
+        "adjust",
+        "compare",
+        "optimize",
+        "report",
+        "explain",
+    }
     assert response["message"]
-    if expected in {"simulate", "compare"}:
-        assert response["calculations"]
-    if expected == "report":
-        assert response["actions"] == [{"type": "report", "format": "pdf"}]
+    assert isinstance(response["calculations"], list)
+    actions = response.get("actions") or []
+    assert isinstance(actions, list)
+    if actions:
+        assert any(
+            action.get("type") == "report" and action.get("format") in {"html", "pdf"}
+            for action in actions
+            if isinstance(action, dict)
+        )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from copy import deepcopy
 from typing import Any, Literal
@@ -11,6 +12,8 @@ from .models import ScenarioOverride, SimulationConfig
 from .optimizer import compare_scenarios, optimize
 from .settings import settings
 from .simulator import simulate
+
+logger = logging.getLogger(__name__)
 
 ChatIntent = Literal[
     "collect_info",
@@ -198,9 +201,10 @@ def chat(messages: list[dict[str, str]], config: SimulationConfig | None = None)
             parallel_tool_calls=False,
             reasoning={"effort": "low"},
         )
-    except Exception as exc:
+    except Exception:
+        logger.warning("OpenAI request failed; using local fallback", exc_info=True)
         fallback = _fallback_chat(messages, base_config)
-        fallback["warnings"].append(f"OpenAI request failed; used local fallback: {exc}")
+        fallback["warnings"].append("OpenAI request failed; used local deterministic fallback.")
         return fallback
 
     tool_outputs = []
@@ -237,8 +241,9 @@ def chat(messages: list[dict[str, str]], config: SimulationConfig | None = None)
                 input=tool_outputs,
             )
             text = getattr(final, "output_text", "") or text
-        except Exception as exc:
-            warnings.append(f"OpenAI final response failed after tool execution: {exc}")
+        except Exception:
+            logger.warning("OpenAI final response failed after tool execution", exc_info=True)
+            warnings.append("OpenAI final response failed after tool execution.")
 
     if not text:
         text = _default_message(intent, calculations, actions)
