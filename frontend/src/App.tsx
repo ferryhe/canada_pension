@@ -14,7 +14,13 @@ import type { ReactNode } from "react";
 import { compare, createReport, sendChat, simulate } from "./api";
 import { defaultConfig } from "./defaultConfig";
 import { money, percent } from "./format";
-import type { ChatMessage, ScenarioComparison, SimulationConfig, SimulationResult } from "./types";
+import type {
+  ChatMessage,
+  OptimizeResponse,
+  ScenarioComparison,
+  SimulationConfig,
+  SimulationResult
+} from "./types";
 
 type Status = "idle" | "loading" | "error";
 
@@ -86,11 +92,29 @@ export function App() {
     try {
       const response = await sendChat(nextMessages, config);
       setMessages([...nextMessages, { role: "assistant", content: response.message }]);
+      setConfig(response.applied_config);
       const simulation = response.calculations.find((item) => item.tool === "simulate_retirement");
+      const comparisonResult = response.calculations.find(
+        (item) => item.tool === "compare_retirement_scenarios"
+      );
+      const optimization = response.calculations.find(
+        (item) => item.tool === "optimize_retirement_plan"
+      );
       if (simulation && isSimulationResult(simulation.output)) {
         setResult(simulation.output);
       }
+      if (comparisonResult && isScenarioComparison(comparisonResult.output)) {
+        setComparison(comparisonResult.output);
+      }
+      if (optimization && isOptimizeResponse(optimization.output)) {
+        setComparison(optimization.output.comparison);
+        setConfig(optimization.output.optimized_config);
+      }
       setStatus("idle");
+      const reportAction = response.actions.find((action) => action.type === "report");
+      if (reportAction) {
+        await exportReport(reportAction.format);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Assistant failed");
       setStatus("error");
@@ -229,7 +253,7 @@ function ResultsPanel({
           value={result ? money(result.summary.first_retirement_after_tax_income) : "--"}
         />
         <Metric
-          label="退休期平均"
+          label={result ? `到 ${result.summary.summary_end_age} 岁平均` : "退休期平均"}
           value={result ? money(result.summary.average_retirement_after_tax_income) : "--"}
         />
         <Metric label="终值净资产" value={result ? money(result.summary.ending_net_worth) : "--"} />
@@ -251,6 +275,36 @@ function ResultsPanel({
           {busy && <div className="chart-busy"><Loader2 className="animate-spin" /></div>}
         </div>
       </section>
+
+      {result && (
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="panel">
+            <PanelTitle icon={<Bot />} title="建议" />
+            <ul className="compact-list">
+              {result.summary.suggestions.map((suggestion) => (
+                <li key={suggestion}>{suggestion}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="panel">
+            <PanelTitle icon={<FileText />} title="口径" />
+            <div className="source-box">
+              <strong>
+                {result.source_version.province} {result.source_version.policy_year} ·{" "}
+                {result.source_version.benefit_quarter}
+              </strong>
+              <span>{result.source_version.sources.length} official sources tracked</span>
+              {result.warnings.length > 0 && (
+                <ul className="compact-list warn-list">
+                  {result.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="panel flex-1 overflow-hidden">
         <PanelTitle icon={<SlidersHorizontal />} title="退休年度" />
@@ -335,14 +389,20 @@ function ConfigPanel({
         <FieldGroup title="Profile">
           <NumberField label="当前年龄" value={config.profile.current_age} onChange={(value) => update(["profile", "current_age"], value)} />
           <NumberField label="退休年龄" value={config.profile.retirement_age} onChange={(value) => update(["profile", "retirement_age"], value)} />
+          <NumberField label="预期寿命" value={config.profile.life_expectancy} onChange={(value) => update(["profile", "life_expectancy"], value)} />
           <NumberField label="模拟终点" value={config.profile.projection_end_age} onChange={(value) => update(["profile", "projection_end_age"], value)} />
         </FieldGroup>
         <FieldGroup title="Accounts">
           <NumberField label="TFSA" value={config.accounts.tfsa.balance} onChange={(value) => update(["accounts", "tfsa", "balance"], value)} />
+          <NumberField label="TFSA 年供款" value={config.accounts.tfsa.annual_contribution} onChange={(value) => update(["accounts", "tfsa", "annual_contribution"], value)} />
           <NumberField label="RRSP" value={config.accounts.rrsp.balance} onChange={(value) => update(["accounts", "rrsp", "balance"], value)} />
           <NumberField label="RRSP 年供款" value={config.accounts.rrsp.annual_contribution} onChange={(value) => update(["accounts", "rrsp", "annual_contribution"], value)} />
           <NumberField label="非注册" value={config.accounts.non_registered.balance} onChange={(value) => update(["accounts", "non_registered", "balance"], value)} />
-          <NumberField label="投资贷款" value={config.accounts.investment_loan.balance} onChange={(value) => update(["accounts", "investment_loan", "balance"], value)} />
+          <NumberField label="非注册年供款" value={config.accounts.non_registered.annual_contribution} onChange={(value) => update(["accounts", "non_registered", "annual_contribution"], value)} />
+          <NumberField label="投资资产" value={config.accounts.investment_loan.gross_asset_balance} onChange={(value) => update(["accounts", "investment_loan", "gross_asset_balance"], value)} />
+          <NumberField label="贷款余额" value={config.accounts.investment_loan.loan_balance} onChange={(value) => update(["accounts", "investment_loan", "loan_balance"], value)} />
+          <NumberField label="贷款年还款" value={config.accounts.investment_loan.annual_repayment} onChange={(value) => update(["accounts", "investment_loan", "annual_repayment"], value)} />
+          <NumberField label="贷款利率" step={0.01} value={config.accounts.investment_loan.interest_rate} format={percent} onChange={(value) => update(["accounts", "investment_loan", "interest_rate"], value)} />
           <NumberField label="配偶 RRSP" value={config.accounts.spouse_rrsp.balance} onChange={(value) => update(["accounts", "spouse_rrsp", "balance"], value)} />
         </FieldGroup>
         <FieldGroup title="Assumptions">
@@ -352,7 +412,11 @@ function ConfigPanel({
         </FieldGroup>
         <FieldGroup title="Benefits">
           <NumberField label="OAS 起始" value={config.benefits.oas.start_age} onChange={(value) => update(["benefits", "oas", "start_age"], value)} />
+          <NumberField label="OAS 年额" value={config.benefits.oas.annual_amount} onChange={(value) => update(["benefits", "oas", "annual_amount"], value)} />
           <NumberField label="CPP 起始" value={config.benefits.cpp.start_age} onChange={(value) => update(["benefits", "cpp", "start_age"], value)} />
+          <NumberField label="CPP 年额" value={config.benefits.cpp.annual_amount} onChange={(value) => update(["benefits", "cpp", "annual_amount"], value)} />
+          <NumberField label="GIS 年上限" value={config.benefits.gis.annual_max} onChange={(value) => update(["benefits", "gis", "annual_max"], value)} />
+          <NumberField label="GIS 收入线" value={config.benefits.gis.income_cutoff} onChange={(value) => update(["benefits", "gis", "income_cutoff"], value)} />
           <label className="toggle">
             <input
               checked={config.benefits.gis.enabled}
@@ -361,6 +425,12 @@ function ConfigPanel({
             />
             <span>GIS</span>
           </label>
+        </FieldGroup>
+        <FieldGroup title="Withdrawals">
+          <NumberField label="TFSA 提取率" step={0.01} value={config.withdrawal_strategy.tfsa_rate} format={percent} onChange={(value) => update(["withdrawal_strategy", "tfsa_rate"], value)} />
+          <NumberField label="非注册提取率" step={0.01} value={config.withdrawal_strategy.non_registered_rate} format={percent} onChange={(value) => update(["withdrawal_strategy", "non_registered_rate"], value)} />
+          <NumberField label="资本利得比例" step={0.01} value={config.withdrawal_strategy.capital_gain_ratio} format={percent} onChange={(value) => update(["withdrawal_strategy", "capital_gain_ratio"], value)} />
+          <NumberField label="配偶RRSP提取率" step={0.01} value={config.withdrawal_strategy.spouse_rrsp_rate} format={percent} onChange={(value) => update(["withdrawal_strategy", "spouse_rrsp_rate"], value)} />
         </FieldGroup>
       </div>
       <button className="primary-action mt-4" onClick={() => void runSimulation(config)} type="button">
@@ -448,5 +518,23 @@ function isSimulationResult(value: unknown): value is SimulationResult {
       typeof value === "object" &&
       "summary" in value &&
       "yearly_results" in value
+  );
+}
+
+function isScenarioComparison(value: unknown): value is ScenarioComparison {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "comparison_table" in value &&
+      "best_scenario" in value
+  );
+}
+
+function isOptimizeResponse(value: unknown): value is OptimizeResponse {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "optimized_config" in value &&
+      "comparison" in value
   );
 }

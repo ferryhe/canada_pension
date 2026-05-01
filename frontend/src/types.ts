@@ -9,7 +9,12 @@ export type SimulationConfig = {
     tfsa: { balance: number; annual_contribution: number };
     rrsp: { balance: number; annual_contribution: number };
     non_registered: { balance: number; annual_contribution: number };
-    investment_loan: { balance: number; annual_repayment: number; interest_rate: number };
+    investment_loan: {
+      gross_asset_balance: number;
+      loan_balance: number;
+      annual_repayment: number;
+      interest_rate: number;
+    };
     spouse_rrsp: { balance: number; annual_contribution: number };
   };
   assumptions: {
@@ -77,6 +82,7 @@ export type SimulationResult = {
   yearly_results: YearlyResult[];
   summary: {
     retirement_year: number;
+    summary_end_age: number;
     first_retirement_after_tax_income: number;
     average_retirement_after_tax_income: number;
     total_after_tax_income: number;
@@ -116,6 +122,17 @@ export type ChatMessage = {
 
 export type ChatResponse = {
   message: string;
+  intent: "collect_info" | "simulate" | "adjust" | "compare" | "optimize" | "report" | "explain";
   calculations: Array<{ tool: string; output: unknown }>;
+  actions: Array<{ type: "report"; format: "html" | "pdf" }>;
+  applied_config: SimulationConfig;
+  missing_fields: string[];
+  warnings: string[];
   model: string;
+};
+
+export type OptimizeResponse = {
+  optimized_config: SimulationConfig;
+  suggestions: string[];
+  comparison: ScenarioComparison;
 };

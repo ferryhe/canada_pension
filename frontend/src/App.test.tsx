@@ -42,6 +42,7 @@ const simulation = {
   ],
   summary: {
     retirement_year: 2051,
+    summary_end_age: 95,
     first_retirement_after_tax_income: 13000,
     average_retirement_after_tax_income: 13000,
     total_after_tax_income: 13000,
@@ -55,7 +56,10 @@ const simulation = {
 };
 
 describe("App", () => {
+  let reportShouldFail = false;
+
   beforeEach(() => {
+    reportShouldFail = false;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -81,13 +85,70 @@ describe("App", () => {
           });
         }
         if (url.includes("/api/v1/chat")) {
+          const body = JSON.parse(String(init?.body ?? "{}"));
+          const lastMessage = body.messages[body.messages.length - 1]?.content ?? "";
+          if (lastMessage.includes("导出PDF")) {
+            return jsonResponse({
+              message: "好的，我会为当前模拟结果准备 PDF 报告。",
+              intent: "report",
+              model: "local-fallback",
+              applied_config: body.config,
+              actions: [{ type: "report", format: "pdf" }],
+              missing_fields: [],
+              warnings: [],
+              calculations: []
+            });
+          }
           return jsonResponse({
             message: "已完成模拟。",
+            intent: "simulate",
             model: "local-fallback",
+            applied_config: {
+              profile: {
+                current_age: 40,
+                retirement_age: 65,
+                life_expectancy: 95,
+                projection_end_age: 100
+              },
+              accounts: {
+                tfsa: { balance: 50000, annual_contribution: 0 },
+                rrsp: { balance: 500000, annual_contribution: 33000 },
+                non_registered: { balance: 50000, annual_contribution: 0 },
+                investment_loan: {
+                  gross_asset_balance: 300000,
+                  loan_balance: 300000,
+                  annual_repayment: 15000,
+                  interest_rate: 0.05
+                },
+                spouse_rrsp: { balance: 300000, annual_contribution: 0 }
+              },
+              assumptions: { annual_return: 0.08, inflation: 0.03, oas_cpp_growth: 0.025 },
+              benefits: {
+                oas: { start_age: 71, annual_amount: 8916.6 },
+                cpp: { start_age: 71, annual_amount: 16747 },
+                gis: { enabled: true, annual_max: 13318.2, income_cutoff: 22512 }
+              },
+              tax: { province: "ON", capital_gains_inclusion_rate: 0.5 },
+              withdrawal_strategy: {
+                tfsa_rate: 0.05,
+                non_registered_rate: 0.05,
+                capital_gain_ratio: 0.5,
+                spouse_rrsp_rate: 0.04
+              }
+            },
+            actions: [],
+            missing_fields: [],
+            warnings: [],
             calculations: [{ tool: "simulate_retirement", output: simulation }]
           });
         }
         if (url.includes("/api/v1/report")) {
+          if (reportShouldFail) {
+            return new Response(JSON.stringify({ detail: "WeasyPrint missing" }), {
+              headers: { "Content-Type": "application/json" },
+              status: 503
+            });
+          }
           return new Response(new Blob(["report"], { type: "application/pdf" }));
         }
         throw new Error(`Unexpected request ${url} ${init?.method}`);
@@ -109,6 +170,8 @@ describe("App", () => {
     expect(await screen.findByText("Canada Retirement Planner")).toBeInTheDocument();
     expect(await screen.findByText("2051")).toBeInTheDocument();
     expect(screen.getAllByText("$13,000").length).toBeGreaterThan(0);
+    expect(screen.getByText("Compare scenarios")).toBeInTheDocument();
+    expect(screen.getByText(/ON 2026/)).toBeInTheDocument();
   });
 
   it("runs comparison from the toolbar", async () => {
@@ -125,6 +188,30 @@ describe("App", () => {
     await userEvent.type(screen.getByPlaceholderText("40岁，RRSP50万，65退休"), "按默认计算");
     await userEvent.click(screen.getByTitle("Send"));
     await waitFor(() => expect(screen.getByText("已完成模拟。")).toBeInTheDocument());
+  });
+
+  it("edits parameters and sends the updated config", async () => {
+    render(<App />);
+    await screen.findByText("2051");
+    await userEvent.clear(screen.getByLabelText("预期寿命"));
+    await userEvent.type(screen.getByLabelText("预期寿命"), "90");
+    await userEvent.click(screen.getByRole("button", { name: /Run/i }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/simulate"),
+        expect.objectContaining({ body: expect.stringContaining('"life_expectancy":90') })
+      )
+    );
+  });
+
+  it("shows report export errors from chat actions", async () => {
+    reportShouldFail = true;
+    render(<App />);
+    await screen.findByText("2051");
+    await userEvent.clear(screen.getByPlaceholderText("40岁，RRSP50万，65退休"));
+    await userEvent.type(screen.getByPlaceholderText("40岁，RRSP50万，65退休"), "导出PDF");
+    await userEvent.click(screen.getByTitle("Send"));
+    expect(await screen.findByText("WeasyPrint missing")).toBeInTheDocument();
   });
 });
 
