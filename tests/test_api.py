@@ -1,0 +1,56 @@
+from fastapi.testclient import TestClient
+from retirement_calculator.api import app
+from retirement_calculator.models import SimulationConfig
+from retirement_calculator.simulator import simulate
+
+client = TestClient(app)
+
+
+def test_simulate_endpoint():
+    response = client.post("/api/v1/simulate", json={"config": SimulationConfig().model_dump()})
+    assert response.status_code == 200
+    assert response.json()["summary"]["retirement_year"] == 2051
+
+
+def test_compare_endpoint():
+    response = client.post(
+        "/api/v1/compare",
+        json={
+            "config": SimulationConfig().model_dump(),
+            "scenarios": [
+                {"name": "Base", "profile": {"retirement_age": 65}},
+                {"name": "Later", "profile": {"retirement_age": 67}},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    assert len(response.json()["comparison_table"]) == 2
+    assert response.json()["best_scenario"] in {"Base", "Later"}
+
+
+def test_optimize_endpoint():
+    response = client.post("/api/v1/optimize", json={"config": SimulationConfig().model_dump()})
+    assert response.status_code == 200
+    assert response.json()["suggestions"]
+
+
+def test_report_html_endpoint():
+    result = simulate(SimulationConfig())
+    response = client.post(
+        "/api/v1/report",
+        json={"result": result.model_dump(), "format": "html", "template": "summary"},
+    )
+    assert response.status_code == 200
+    assert "Retirement Summary" in response.text
+
+
+def test_chat_falls_back_without_openai_key(monkeypatch):
+    monkeypatch.setattr("retirement_calculator.ai.settings.openai_api_key", None)
+    response = client.post(
+        "/api/v1/chat",
+        json={"messages": [{"role": "user", "content": "40岁，RRSP50万，65退休"}]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["model"] == "local-fallback"
+    assert body["calculations"][0]["tool"] == "simulate_retirement"
