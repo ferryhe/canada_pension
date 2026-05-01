@@ -33,7 +33,10 @@ def render_pdf(html: str) -> bytes:
         from weasyprint import HTML
     except Exception as exc:  # pragma: no cover - depends on system libraries
         raise RuntimeError("WeasyPrint is not available in this environment") from exc
-    return HTML(string=html).write_pdf()
+    try:
+        return HTML(string=html).write_pdf()
+    except Exception as exc:  # pragma: no cover - depends on system libraries
+        raise RuntimeError("WeasyPrint is not available in this environment") from exc
 
 
 def write_report(

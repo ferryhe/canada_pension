@@ -88,4 +88,4 @@ def report_endpoint(request: ReportRequest):
 
 @app.get("/api/v1/templates")
 def templates() -> dict[str, list[str]]:
-    return {"templates": ["summary", "detailed", "comparison"]}
+    return {"templates": ["summary", "detailed"]}

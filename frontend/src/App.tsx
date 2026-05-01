@@ -38,10 +38,13 @@ export function App() {
 
   useEffect(() => {
     void runSimulation();
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (reportUrl) URL.revokeObjectURL(reportUrl);
     };
-  }, []);
+  }, [reportUrl]);
 
   async function runSimulation(nextConfig = config) {
     setStatus("loading");

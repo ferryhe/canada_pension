@@ -145,6 +145,7 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
             + oas_amount
             + gis_amount
             - investment_loan_repayment
+            - loan_interest_deduction
         )
         after_tax_income = gross_cash - tax_breakdown.total_tax
 
